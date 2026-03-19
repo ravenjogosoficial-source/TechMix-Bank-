@@ -140,43 +140,80 @@ function openTransfer(){
 
 function scanPayer(){
  openScanner(code=>{
-  if(!players[code]) return alert('Jogador não encontrado');
   payer=code;
 
   popup.style.display='flex';
   popupBox.innerHTML = transferTemplate();
 
-  document.getElementById('payerInfo').innerHTML =
-    `Pagador: ${players[code].name} (${cardMap[code].name})`;
+  if(code === 'jogador1'){
+    document.getElementById('payerInfo').innerHTML =
+      `Pagador: Banco`;
+  } else {
+    if(!players[code]) return alert('Jogador não encontrado');
+    document.getElementById('payerInfo').innerHTML =
+      `Pagador: ${players[code].name} (${cardMap[code].name})`;
+  }
  });
 }
 
 function scanReceiver(){
  openScanner(code=>{
-  if(!players[code]) return alert('Jogador não encontrado');
   receiver=code;
 
   popup.style.display='flex';
   popupBox.innerHTML = transferTemplate();
 
   if(payer){
-    document.getElementById('payerInfo').innerHTML =
-      `Pagador: ${players[payer].name} (${cardMap[payer].name})`;
+    if(payer === 'jogador1'){
+      document.getElementById('payerInfo').innerHTML = `Pagador: Banco`;
+    } else {
+      document.getElementById('payerInfo').innerHTML =
+        `Pagador: ${players[payer].name} (${cardMap[payer].name})`;
+    }
   }
 
-  document.getElementById('receiverInfo').innerHTML =
-    `Recebedor: ${players[code].name} (${cardMap[code].name})`;
+  if(code === 'jogador1'){
+    document.getElementById('receiverInfo').innerHTML =
+      `Recebedor: Banco`;
+  } else {
+    if(!players[code]) return alert('Jogador não encontrado');
+    document.getElementById('receiverInfo').innerHTML =
+      `Recebedor: ${players[code].name} (${cardMap[code].name})`;
+  }
  });
 }
 
 function confirmTransfer(){
  let v=parseInt(document.getElementById('val').value)||0;
  if(!payer||!receiver) return alert('Escaneie os dois');
- if(players[payer].balance<v) return alert('Saldo insuficiente');
- players[payer].balance-=v;
- players[receiver].balance+=v;
+
+ // BANCO PAGANDO
+ if(payer === 'jogador1'){
+   if(bank < v) return alert('Banco sem saldo');
+   if(!players[receiver]) return alert('Jogador não encontrado');
+
+   bank -= v;
+   players[receiver].balance += v;
+   history.push(`Banco pagou ${format(v)} para ${players[receiver].name}`);
+ }
+ // BANCO RECEBENDO
+ else if(receiver === 'jogador1'){
+   if(!players[payer]) return alert('Jogador não encontrado');
+   if(players[payer].balance < v) return alert('Saldo insuficiente');
+
+   players[payer].balance -= v;
+   bank += v;
+   history.push(`${players[payer].name} pagou ${format(v)} ao Banco`);
+ }
+ // ENTRE JOGADORES
+ else {
+   if(players[payer].balance < v) return alert('Saldo insuficiente');
+   players[payer].balance -= v;
+   players[receiver].balance += v;
+   history.push(`${players[payer].name} pagou ${format(v)} para ${players[receiver].name}`);
+ }
+
  document.getElementById('sound').play();
- history.push(`${players[payer].name} pagou ${format(v)} para ${players[receiver].name}`);
 
  for(let i=0;i<10;i++){
   let m=document.createElement('div');
