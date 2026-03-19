@@ -1,0 +1,195 @@
+<!DOCTYPE html><html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TechMix Bank</title>
+<script src="https://unpkg.com/html5-qrcode"></script>
+<style>
+body{margin:0;font-family:'Segoe UI';background:linear-gradient(180deg,#6a0dad,#4b0082);display:flex;justify-content:center;align-items:center;height:100vh}
+.app{width:360px;height:640px;background:#fff;border-radius:25px;overflow:hidden;display:flex;flex-direction:column}
+header{background:#6a0dad;color:#fff;text-align:center;padding:12px;font-weight:bold}
+.content{flex:1;overflow:auto;padding:10px}
+.balance{background:#6a0dad;color:#fff;padding:12px;border-radius:12px;text-align:center;margin-bottom:10px;font-weight:bold}
+.card{background:#f2f2f2;padding:10px;border-radius:12px;margin-bottom:10px}
+.players{display:flex;flex-direction:column;gap:8px}
+.player-card{padding:12px;border-radius:15px;color:#fff}
+.player-balance{font-size:20px;font-weight:bold}
+.falido{filter:grayscale(100%);opacity:.5}
+.kubank{background:#7b1fa2}.mercado{background:#000}.nectar{background:#2e7d32}.inner{background:#ef6c00}.win{background:#fbc02d;color:#000}.bafresco{background:#c62828}
+button,input{width:100%;padding:10px;margin-top:6px;border-radius:10px;border:1px solid #ccc}
+button{background:#6a0dad;color:#fff;font-weight:bold;border:none}
+.popup{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.7);display:none;justify-content:center;align-items:center}
+.popup-box{background:#6a0dad;color:#fff;padding:20px;border-radius:15px;width:85%}
+#reader{width:100%}
+.money{position:absolute;font-size:20px;animation:fly 1s linear}
+@keyframes fly{from{transform:translateY(0);opacity:1}to{transform:translateY(-200px);opacity:0}}
+.history{max-height:120px;overflow:auto;font-size:12px}
+</style>
+</head>
+<body>
+<div class="app">
+<header>🏦 TechMix Bank</header>
+<div class="content">
+<div class="balance" id="bankDisplay"></div><div class="card">
+<input id="bankValue" type="number" placeholder="Saldo banco">
+<button onclick="startBank()">Iniciar Banco</button>
+<button onclick="resetAll()">Resetar</button>
+</div><div class="card">
+<input id="initialPlayerMoney" type="number" placeholder="Saldo inicial">
+<input id="playerName" type="text" placeholder="Nome">
+<button onclick="scanPlayer()">Cadastrar Jogador</button>
+<div id="playersList" class="players"></div>
+</div><div class="card">
+<h4>🏆 Ranking</h4>
+<div id="ranking"></div>
+</div><div class="card">
+<h4>📜 Extrato</h4>
+<div id="history" class="history"></div>
+</div><div class="card">
+<button onclick="openTransfer()">💸 Transferência</button>
+</div></div>
+</div><div class="popup" id="popup">
+<div class="popup-box" id="popupBox"></div>
+</div><audio id="sound" src="https://www.soundjay.com/buttons/sounds/button-16.mp3"></audio>
+
+<script>
+let bank=0,players={},history=[],payer=null,receiver=null;
+let html5QrCode=null;
+
+const cardMap={
+"jogador2":{name:"Kubank",class:"kubank"},
+"jogador3":{name:"Mercado Caro",class:"mercado"},
+"jogador4":{name:"Néctar",class:"nectar"},
+"jogador5":{name:"Inner",class:"inner"},
+"jogador6":{name:"Win Bank",class:"win"},
+"jogador7":{name:"Bafresco",class:"bafresco"}
+};
+
+function format(v){return v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});}
+
+function save(){localStorage.setItem('bank',bank);localStorage.setItem('players',JSON.stringify(players));localStorage.setItem('history',JSON.stringify(history));}
+function load(){bank=parseInt(localStorage.getItem('bank'))||0;players=JSON.parse(localStorage.getItem('players'))||{};history=JSON.parse(localStorage.getItem('history'))||[];updateUI();}
+
+function updateUI(){
+ bankDisplay.innerText='Banco: '+format(bank);
+ playersList.innerHTML='';
+ let arr=[];
+ for(let c in players){
+  let p=players[c];arr.push(p);
+  let falido=p.balance<=0?'falido':'';
+  playersList.innerHTML+=`<div class="player-card ${cardMap[c].class} ${falido}">
+  ${p.name} - ${cardMap[c].name}<br>
+  <div class="player-balance">${format(p.balance)}</div></div>`;
+ }
+ arr.sort((a,b)=>b.balance-a.balance);
+ ranking.innerHTML=arr.map((p,i)=>`${i+1}º ${p.name} - ${format(p.balance)}`).join('<br>');
+ document.getElementById('history').innerHTML=history.slice(-10).reverse().join('<br>');
+}
+
+function startBank(){bank=parseInt(bankValue.value)||0;save();updateUI();}
+function resetAll(){localStorage.clear();location.reload();}
+
+function openScanner(cb){
+ popup.style.display='flex';
+ popupBox.innerHTML='<div id="reader"></div>';
+
+ setTimeout(()=>{
+  html5QrCode=new Html5Qrcode("reader");
+  html5QrCode.start({facingMode:"environment"},{fps:10,qrbox:250},
+   text=>{
+    html5QrCode.stop().then(()=>{
+     popup.style.display='none';
+     cb(text);
+    });
+   }
+  ).catch(err=>{
+    alert('Erro câmera: '+err);
+    popup.style.display='none';
+  });
+ },200);
+}
+
+function scanPlayer(){
+ openScanner(code=>{
+  if(!cardMap[code]) return alert('Cartão inválido');
+  let name=playerName.value;
+  let val=parseInt(initialPlayerMoney.value)||0;
+  players[code]={name:name,balance:val};
+  bank-=val;
+  history.push(`${name} entrou com ${format(val)}`);
+  save();updateUI();
+ });
+}
+
+function transferTemplate(){
+ return `
+ <h3>Transferência</h3>
+ <button onclick="scanPayer()">Escanear Pagador</button>
+ <div id="payerInfo"></div>
+ <button onclick="scanReceiver()">Escanear Recebedor</button>
+ <div id="receiverInfo"></div>
+ <input id="val" type="number" placeholder="Valor">
+ <button onclick="confirmTransfer()">Transferir</button>`;
+}
+
+function openTransfer(){
+ payer=null;receiver=null;
+ popup.style.display='flex';
+ popupBox.innerHTML = transferTemplate();
+}
+
+function scanPayer(){
+ openScanner(code=>{
+  if(!players[code]) return alert('Jogador não encontrado');
+  payer=code;
+
+  popup.style.display='flex';
+  popupBox.innerHTML = transferTemplate();
+
+  document.getElementById('payerInfo').innerHTML =
+    `Pagador: ${players[code].name} (${cardMap[code].name})`;
+ });
+}
+
+function scanReceiver(){
+ openScanner(code=>{
+  if(!players[code]) return alert('Jogador não encontrado');
+  receiver=code;
+
+  popup.style.display='flex';
+  popupBox.innerHTML = transferTemplate();
+
+  if(payer){
+    document.getElementById('payerInfo').innerHTML =
+      `Pagador: ${players[payer].name} (${cardMap[payer].name})`;
+  }
+
+  document.getElementById('receiverInfo').innerHTML =
+    `Recebedor: ${players[code].name} (${cardMap[code].name})`;
+ });
+}
+
+function confirmTransfer(){
+ let v=parseInt(document.getElementById('val').value)||0;
+ if(!payer||!receiver) return alert('Escaneie os dois');
+ if(players[payer].balance<v) return alert('Saldo insuficiente');
+ players[payer].balance-=v;
+ players[receiver].balance+=v;
+ document.getElementById('sound').play();
+ history.push(`${players[payer].name} pagou ${format(v)} para ${players[receiver].name}`);
+
+ for(let i=0;i<10;i++){
+  let m=document.createElement('div');
+  m.className='money';m.innerText='💸';
+  m.style.left=Math.random()*300+'px';
+  m.style.top='300px';
+  document.body.appendChild(m);
+  setTimeout(()=>m.remove(),1000);
+ }
+
+ save();updateUI();popup.style.display='none';
+}
+
+load();
+</script></body>
+</html>
