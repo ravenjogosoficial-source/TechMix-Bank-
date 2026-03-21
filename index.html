@@ -1,240 +1,887 @@
-<!DOCTYPE html><html lang="pt-BR">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TechMix Bank</title>
-<script src="https://unpkg.com/html5-qrcode"></script>
-<style>
-body{margin:0;font-family:'Segoe UI';background:linear-gradient(180deg,#6a0dad,#4b0082);display:flex;justify-content:center;align-items:center;height:100vh}
-.app{width:360px;height:640px;background:#fff;border-radius:25px;overflow:hidden;display:flex;flex-direction:column}
-header{background:#6a0dad;color:#fff;text-align:center;padding:12px;font-weight:bold}
-.content{flex:1;overflow:auto;padding:10px}
-.balance{background:#6a0dad;color:#fff;padding:12px;border-radius:12px;text-align:center;margin-bottom:10px;font-weight:bold}
-.card{background:#f2f2f2;padding:10px;border-radius:12px;margin-bottom:10px}
-.players{display:flex;flex-direction:column;gap:8px}
-.player-card{padding:12px;border-radius:15px;color:#fff}
-.player-balance{font-size:20px;font-weight:bold}
-.falido{filter:grayscale(100%);opacity:.5}
-.kubank{background:#7b1fa2}.mercado{background:#000}.nectar{background:#2e7d32}.inner{background:#ef6c00}.win{background:#fbc02d;color:#000}.bafresco{background:#c62828}
-button,input{width:100%;padding:10px;margin-top:6px;border-radius:10px;border:1px solid #ccc}
-button{background:#6a0dad;color:#fff;font-weight:bold;border:none}
-.cancel{background:#999}
-.popup{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.7);display:none;justify-content:center;align-items:center}
-.popup-box{background:#6a0dad;color:#fff;padding:20px;border-radius:15px;width:85%}
-#reader{width:100%}
-.money{position:absolute;font-size:20px;animation:fly 1s linear}
-@keyframes fly{from{transform:translateY(0);opacity:1}to{transform:translateY(-200px);opacity:0}}
-.history{max-height:120px;overflow:auto;font-size:12px}
-</style>
-</head>
-<body>
-<div class="app">
-<header>🏦 TechMix Bank</header>
-<div class="content">
-<div class="balance" id="bankDisplay"></div><div class="card">
-<input id="bankValue" type="number" placeholder="Saldo banco">
-<button onclick="startBank()">Iniciar Banco</button>
-<button onclick="resetAll()">Resetar</button>
-</div><div class="card">
-<input id="initialPlayerMoney" type="number" placeholder="Saldo inicial">
-<input id="playerName" type="text" placeholder="Nome">
-<button onclick="scanPlayer()">Cadastrar Jogador</button>
-<div id="playersList" class="players"></div>
-</div><div class="card">
-<h4>🏆 Ranking</h4>
-<div id="ranking"></div>
-</div><div class="card">
-<h4>📜 Extrato</h4>
-<div id="history" class="history"></div>
-</div><div class="card">
-<button onclick="openTransfer()">💸 Transferência</button>
-</div></div>
-</div><div class="popup" id="popup">
-<div class="popup-box" id="popupBox"></div>
-</div><audio id="sound" src="https://www.soundjay.com/buttons/sounds/button-16.mp3"></audio>
+<!doctype html>
+<html lang="pt-BR" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TechMix Bank</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+  <script src="/_sdk/element_sdk.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Outfit', sans-serif; }
+    .scan-line {
+      animation: scanMove 2s ease-in-out infinite;
+    }
+    @keyframes scanMove {
+      0%, 100% { top: 10%; }
+      50% { top: 85%; }
+    }
+    .pulse-ring {
+      animation: pulseRing 1.5s ease-out infinite;
+    }
+    @keyframes pulseRing {
+      0% { transform: scale(0.8); opacity: 1; }
+      100% { transform: scale(1.6); opacity: 0; }
+    }
+    .fade-in {
+      animation: fadeIn 0.3s ease-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .slide-up {
+      animation: slideUp 0.4s ease-out;
+    }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(40px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .card-shine {
+      background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 50%, rgba(255,255,255,0.1) 100%);
+    }
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button {
+      -webkit-appearance: none; margin: 0;
+    }
+    input[type="number"] { -moz-appearance: textfield; }
+    .toast-anim {
+      animation: toastIn 0.3s ease-out, toastOut 0.3s ease-in 2.7s forwards;
+    }
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(-20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes toastOut {
+      from { opacity: 1; }
+      to { opacity: 0; }
+    }
+    .animate-slide-up {
+      animation: slideUp 0.4s ease-out;
+    }
+  </style>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#6B21A8',
+            'primary-dark': '#581C87',
+            'primary-light': '#A855F7',
+            'primary-soft': '#F3E8FF',
+            surface: '#FFFFFF',
+            'surface-alt': '#FAF5FF',
+            accent: '#7C3AED',
+            danger: '#EF4444',
+            success: '#10B981',
+          }
+        }
+      }
+    }
+  </script>
+  <style>body { box-sizing: border-box; }</style>
+  <script src="/_sdk/data_sdk.js" type="text/javascript"></script>
+ </head>
+ <body class="h-full bg-primary-soft text-gray-800 overflow-auto">
+  <div id="app" class="w-full h-full flex flex-col"><!-- Toast -->
+   <div id="toast-container" class="fixed top-4 left-1/2 -translate-x-1/2 z-[999] pointer-events-none"></div><!-- SCREEN: Splash / Setup -->
+   <div id="screen-splash" class="w-full h-full flex flex-col items-center justify-center p-6 bg-gradient-to-br from-primary-dark via-primary to-accent">
+    <div class="text-center slide-up">
+     <div class="w-24 h-24 mx-auto mb-6 rounded-3xl bg-white/20 backdrop-blur flex items-center justify-center shadow-lg"><i data-lucide="landmark" class="w-12 h-12 text-white"></i>
+     </div>
+     <h1 id="splash-title" class="text-4xl font-900 text-white tracking-tight mb-2">TechMix Bank</h1>
+     <p id="splash-subtitle" class="text-white/70 text-lg mb-10">Sistema Bancário Imobiliário</p>
+     <div class="flex flex-col gap-3"><button onclick="showScreen('screen-banker-setup')" class="bg-white text-primary font-700 px-8 py-4 rounded-2xl text-lg shadow-xl hover:shadow-2xl hover:scale-105 transition-all"> Iniciar Partida </button><button onclick="document.getElementById('file-upload').click()" class="bg-white/20 text-white font-700 px-8 py-4 rounded-2xl text-lg shadow-xl hover:shadow-2xl hover:scale-105 transition-all border-2 border-white/40 flex items-center justify-center gap-2"> <i data-lucide="upload" class="w-5 h-5"></i> Carregar Jogo </button>
+     </div><input id="file-upload" type="file" accept=".json" class="hidden" onchange="loadGameSave(event)">
+    </div>
+   </div><!-- SCREEN: Banker Setup -->
+   <div id="screen-banker-setup" class="hidden w-full h-full flex flex-col p-6 bg-gradient-to-br from-primary-dark via-primary to-accent">
+    <div class="flex items-center gap-3 mb-8"><button onclick="showScreen('screen-splash')" class="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center"> <i data-lucide="arrow-left" class="w-5 h-5 text-white"></i> </button>
+     <h2 class="text-2xl font-800 text-white">Configurar Banco</h2>
+    </div>
+    <div class="flex-1 flex flex-col justify-center max-w-md mx-auto w-full fade-in">
+     <div class="bg-white rounded-3xl p-8 shadow-2xl">
+      <div class="w-16 h-16 mx-auto mb-6 rounded-2xl bg-primary-soft flex items-center justify-center"><i data-lucide="building-2" class="w-8 h-8 text-primary"></i>
+      </div>
+      <h3 class="text-xl font-700 text-center mb-2">Saldo Inicial do Banco</h3>
+      <p class="text-gray-500 text-center text-sm mb-6">Defina o valor que o banco inicia a partida</p>
+      <div class="relative mb-6"><span class="absolute left-4 top-1/2 -translate-y-1/2 text-primary font-700 text-xl">R$</span> <input id="banker-balance-input" type="number" value="200000" min="0" step="1000" class="w-full pl-14 pr-4 py-4 text-2xl font-700 text-gray-800 bg-primary-soft/50 border-2 border-primary/20 rounded-2xl focus:outline-none focus:border-primary transition-colors text-right">
+      </div><button onclick="setupBanker()" class="w-full bg-primary text-white font-700 py-4 rounded-2xl text-lg hover:bg-primary-dark transition-colors shadow-lg"> Confirmar Banco </button>
+     </div>
+    </div>
+   </div><!-- SCREEN: Dashboard -->
+   <div id="screen-dashboard" class="hidden w-full h-full flex flex-col bg-primary-soft overflow-auto">
+    <div class="bg-gradient-to-r from-primary-dark to-accent p-6 pb-8 rounded-b-3xl shadow-lg flex-shrink-0">
+     <div class="flex items-center justify-between mb-4">
+      <h2 id="dash-title" class="text-xl font-800 text-white">TechMix Bank</h2><button onclick="showScreen('screen-splash'); resetGame()" class="text-white/60 hover:text-white text-sm flex items-center gap-1"> <i data-lucide="log-out" class="w-4 h-4"></i> Sair </button>
+     </div>
+     <div class="bg-white/15 backdrop-blur rounded-2xl p-5">
+      <p class="text-white/70 text-sm mb-1">Saldo do Banco</p>
+      <p id="banker-balance-display" class="text-3xl font-900 text-white">R$ 0</p>
+     </div>
+    </div>
+    <div class="flex-1 overflow-auto p-6">
+     <div class="flex items-center justify-between mb-4">
+      <h3 class="text-lg font-700 text-gray-700">Jogadores</h3><span id="player-count-badge" class="text-sm text-primary font-600 bg-primary-soft px-3 py-1 rounded-full">0/6</span>
+     </div>
+     <div id="players-list" class="space-y-3 mb-6"></div>
+     <div id="add-player-btn-wrap"><button id="add-player-btn" onclick="showScreen('screen-add-player')" class="w-full border-2 border-dashed border-primary/30 rounded-2xl p-4 flex items-center justify-center gap-2 text-primary font-600 hover:bg-primary-soft transition-colors"> <i data-lucide="user-plus" class="w-5 h-5"></i> Cadastrar Jogador </button>
+     </div>
+    </div>
+    <div class="flex-shrink-0 p-6 pt-2 space-y-2"><button onclick="startTransaction()" class="w-full bg-primary text-white font-700 py-4 rounded-2xl text-lg hover:bg-primary-dark transition-colors shadow-lg flex items-center justify-center gap-2"> <i data-lucide="arrows-left-right" class="w-5 h-5"></i> Transferência / Pagamento </button>
+     <div class="flex gap-2"><button onclick="downloadGameSave()" class="flex-1 bg-green-600 text-white font-700 py-3 rounded-2xl text-sm hover:bg-green-700 transition-colors shadow-lg flex items-center justify-center gap-2"> <i data-lucide="save" class="w-4 h-4"></i> Salvar Jogo </button> <button onclick="showResetConfirm()" class="flex-1 bg-red-600 text-white font-700 py-3 rounded-2xl text-sm hover:bg-red-700 transition-colors shadow-lg flex items-center justify-center gap-2"> <i data-lucide="refresh-cw" class="w-4 h-4"></i> Resetar </button>
+     </div>
+    </div>
+   </div><!-- SCREEN: Add Player -->
+   <div id="screen-add-player" class="hidden w-full h-full flex flex-col p-6 bg-gradient-to-br from-primary-dark via-primary to-accent overflow-auto">
+    <div class="flex items-center gap-3 mb-8 flex-shrink-0"><button onclick="showScreen('screen-dashboard')" class="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center"> <i data-lucide="arrow-left" class="w-5 h-5 text-white"></i> </button>
+     <h2 class="text-2xl font-800 text-white">Cadastrar Jogador</h2>
+    </div>
+    <div class="flex-1 flex flex-col justify-center min-h-0">
+     <div class="max-w-md mx-auto w-full fade-in">
+      <div class="bg-white rounded-3xl p-8 shadow-2xl">
+       <div class="w-16 h-16 mx-auto mb-6 rounded-2xl bg-primary-soft flex items-center justify-center"><i data-lucide="user-plus" class="w-8 h-8 text-primary"></i>
+       </div><label class="block text-sm font-600 text-gray-600 mb-2">Nome do Jogador</label> <input id="player-name-input" type="text" placeholder="Ex: João" class="w-full px-4 py-3 text-lg font-600 bg-primary-soft/50 border-2 border-primary/20 rounded-xl focus:outline-none focus:border-primary transition-colors mb-4"> <label class="block text-sm font-600 text-gray-600 mb-2">Saldo Inicial</label>
+       <div class="relative mb-6"><span class="absolute left-4 top-1/2 -translate-y-1/2 text-primary font-700">R$</span> <input id="player-balance-input" type="number" value="25000" min="0" step="500" class="w-full pl-12 pr-4 py-3 text-lg font-700 bg-primary-soft/50 border-2 border-primary/20 rounded-xl focus:outline-none focus:border-primary transition-colors text-right">
+       </div><button onclick="startScanForRegistration()" class="w-full bg-primary text-white font-700 py-4 rounded-2xl text-lg hover:bg-primary-dark transition-colors shadow-lg flex items-center justify-center gap-2"> <i data-lucide="scan" class="w-5 h-5"></i> Escanear Cartão </button>
+      </div>
+     </div>
+    </div>
+   </div><!-- MODAL: Transaction History -->
+   <div id="transaction-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-end">
+    <div class="w-full bg-white rounded-t-3xl shadow-2xl max-h-[80%] flex flex-col animate-slide-up">
+     <div class="sticky top-0 flex items-center justify-between p-6 bg-gradient-to-r from-primary-dark to-accent rounded-t-3xl flex-shrink-0">
+      <h3 id="transaction-modal-title" class="text-xl font-800 text-white">Extrato</h3><button onclick="closeTransactionModal()" class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 transition-colors"> <i data-lucide="x" class="w-5 h-5 text-white"></i> </button>
+     </div>
+     <div id="transaction-modal-list" class="flex-1 overflow-auto p-6 space-y-3"></div>
+    </div>
+   </div><!-- SCREEN: QR Scanner -->
+   <div id="screen-scanner" class="hidden w-full h-full flex flex-col bg-gray-950">
+    <div class="flex items-center gap-3 p-6 flex-shrink-0"><button onclick="cancelScan()" class="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center"> <i data-lucide="x" class="w-5 h-5 text-white"></i> </button>
+     <h2 id="scanner-title" class="text-xl font-700 text-white">Escanear Cartão</h2>
+    </div>
+    <div class="flex-1 flex flex-col items-center justify-center p-6 overflow-auto">
+     <div id="scanner-camera-wrapper" class="relative w-80 h-80 mb-8 rounded-3xl overflow-hidden border-4 border-primary-light shadow-2xl bg-black flex items-center justify-center flex-shrink-0">
+      <video id="scanner-video" class="w-full h-full object-cover hidden"></video>
+      <canvas id="scanner-canvas" class="hidden"></canvas>
+      <div id="scanner-loading" class="text-center text-white">
+       <div class="w-12 h-12 border-4 border-primary-light/30 border-t-primary-light rounded-full animate-spin mx-auto mb-4"></div>
+       <p>Iniciando câmera...</p>
+      </div>
+     </div>
+     <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
+      <div class="relative w-64 h-64">
+       <div class="absolute top-0 left-0 w-12 h-12 border-t-4 border-l-4 border-primary-light rounded-tl-3xl"></div>
+       <div class="absolute top-0 right-0 w-12 h-12 border-t-4 border-r-4 border-primary-light rounded-tr-3xl"></div>
+       <div class="absolute bottom-0 left-0 w-12 h-12 border-b-4 border-l-4 border-primary-light rounded-bl-3xl"></div>
+       <div class="absolute bottom-0 right-0 w-12 h-12 border-b-4 border-r-4 border-primary-light rounded-br-3xl"></div>
+      </div>
+     </div>
+     <p id="scanner-instruction" class="text-white/70 text-center mb-4">Posicione o código QR na câmera</p>
+     <p id="scanner-result" class="text-white/50 text-sm text-center mb-4 h-6"></p><button id="scanner-manual-btn" onclick="showCardSelector()" class="text-primary-light text-sm font-600 hover:text-primary-light/80 transition-colors flex items-center gap-1"> <i data-lucide="chevron-down" class="w-4 h-4"></i> Selecionar manualmente </button>
+     <div id="card-selector" class="hidden w-full max-w-sm space-y-2 mt-4"></div>
+    </div>
+   </div><!-- SCREEN: Transaction Flow -->
+   <div id="screen-transaction" class="hidden w-full h-full flex flex-col bg-gradient-to-br from-primary-dark via-primary to-accent overflow-auto">
+    <div class="flex items-center gap-3 p-6 flex-shrink-0"><button onclick="showScreen('screen-dashboard')" class="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center"> <i data-lucide="arrow-left" class="w-5 h-5 text-white"></i> </button>
+     <h2 class="text-xl font-800 text-white">Transferência</h2>
+    </div>
+    <div class="flex-1 overflow-auto p-6">
+     <div id="tx-step-1" class="fade-in max-w-md mx-auto w-full">
+      <div class="bg-white rounded-3xl p-8 shadow-2xl text-center">
+       <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-red-50 flex items-center justify-center"><i data-lucide="scan" class="w-8 h-8 text-red-500"></i>
+       </div>
+       <h3 class="text-xl font-700 mb-2">Passo 1</h3>
+       <p class="text-gray-500 mb-6">Escanear cartão do <strong>Pagador</strong></p><button onclick="scanForTransaction('payer')" class="w-full bg-red-500 text-white font-700 py-4 rounded-2xl text-lg hover:bg-red-600 transition-colors shadow-lg flex items-center justify-center gap-2"> <i data-lucide="scan" class="w-5 h-5"></i> Escanear Pagador </button>
+      </div>
+     </div>
+     <div id="tx-step-2" class="hidden fade-in max-w-md mx-auto w-full">
+      <div class="bg-white rounded-3xl p-8 shadow-2xl text-center">
+       <div class="mb-4 p-3 bg-red-50 rounded-2xl inline-block">
+        <p class="text-xs text-red-400 font-600">Pagador</p>
+        <p id="tx-payer-name" class="text-lg font-800 text-red-600"></p>
+       </div>
+       <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-green-50 flex items-center justify-center"><i data-lucide="scan" class="w-8 h-8 text-green-500"></i>
+       </div>
+       <h3 class="text-xl font-700 mb-2">Passo 2</h3>
+       <p class="text-gray-500 mb-6">Escanear cartão do <strong>Recebedor</strong></p><button onclick="scanForTransaction('receiver')" class="w-full bg-green-500 text-white font-700 py-4 rounded-2xl text-lg hover:bg-green-600 transition-colors shadow-lg flex items-center justify-center gap-2"> <i data-lucide="scan" class="w-5 h-5"></i> Escanear Recebedor </button>
+      </div>
+     </div>
+     <div id="tx-step-3" class="hidden fade-in max-w-md mx-auto w-full">
+      <div class="bg-white rounded-3xl p-8 shadow-2xl">
+       <div class="flex items-center justify-between mb-6">
+        <div class="text-center flex-1">
+         <div class="w-12 h-12 mx-auto rounded-full bg-red-50 flex items-center justify-center mb-1"><i data-lucide="user" class="w-5 h-5 text-red-500"></i>
+         </div>
+         <p class="text-xs text-gray-400">Pagador</p>
+         <p id="tx-payer-name-2" class="font-700 text-sm"></p>
+         <p id="tx-payer-balance" class="text-xs text-gray-400"></p>
+        </div>
+        <div class="px-2"><i data-lucide="arrow-right" class="w-6 h-6 text-primary"></i>
+        </div>
+        <div class="text-center flex-1">
+         <div class="w-12 h-12 mx-auto rounded-full bg-green-50 flex items-center justify-center mb-1"><i data-lucide="user" class="w-5 h-5 text-green-500"></i>
+         </div>
+         <p class="text-xs text-gray-400">Recebedor</p>
+         <p id="tx-receiver-name" class="font-700 text-sm"></p>
+         <p id="tx-receiver-balance" class="text-xs text-gray-400"></p>
+        </div>
+       </div><label class="block text-sm font-600 text-gray-600 mb-2">Valor da Transferência</label>
+       <div class="relative mb-4"><span class="absolute left-4 top-1/2 -translate-y-1/2 text-primary font-700 text-xl">R$</span> <input id="tx-amount-input" type="number" min="1" step="100" placeholder="0" class="w-full pl-14 pr-4 py-4 text-2xl font-700 text-gray-800 bg-primary-soft/50 border-2 border-primary/20 rounded-2xl focus:outline-none focus:border-primary transition-colors text-right">
+       </div>
+       <div id="tx-error" class="hidden text-red-500 text-sm font-600 mb-3 text-center"></div><button id="tx-confirm-btn" onclick="executeTransfer()" class="w-full bg-primary text-white font-700 py-4 rounded-2xl text-lg hover:bg-primary-dark transition-colors shadow-lg flex items-center justify-center gap-2"> <i data-lucide="check" class="w-5 h-5"></i> Transferir </button>
+      </div>
+     </div>
+     <div id="tx-success" class="hidden fade-in max-w-md mx-auto w-full">
+      <div class="bg-white rounded-3xl p-8 shadow-2xl text-center">
+       <div class="w-20 h-20 mx-auto mb-6 rounded-full bg-green-100 flex items-center justify-center"><i data-lucide="check-circle" class="w-10 h-10 text-green-500"></i>
+       </div>
+       <h3 class="text-2xl font-800 text-green-600 mb-2">Transferência Concluída!</h3>
+       <p id="tx-success-msg" class="text-gray-500 mb-6"></p><button onclick="showScreen('screen-dashboard')" class="w-full bg-primary text-white font-700 py-4 rounded-2xl text-lg hover:bg-primary-dark transition-colors"> Voltar ao Painel </button>
+      </div>
+     </div>
+    </div>
+   </div>
+  </div>
+  <script>
+  // ============ LOCAL STORAGE ============
+  const STORAGE_KEY = 'techmix_bank_data';
 
-<script>
-let bank=0,players={},history=[],payer=null,receiver=null;
-let html5QrCode=null;
-
-const cardMap={
-"jogador2":{name:"Kubank",class:"kubank"},
-"jogador3":{name:"Mercado Caro",class:"mercado"},
-"jogador4":{name:"Néctar",class:"nectar"},
-"jogador5":{name:"Inner",class:"inner"},
-"jogador6":{name:"Win Bank",class:"win"},
-"jogador7":{name:"Bafresco",class:"bafresco"}
-};
-
-function format(v){return v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});}
-
-function save(){localStorage.setItem('bank',bank);localStorage.setItem('players',JSON.stringify(players));localStorage.setItem('history',JSON.stringify(history));}
-function load(){bank=parseInt(localStorage.getItem('bank'))||0;players=JSON.parse(localStorage.getItem('players'))||{};history=JSON.parse(localStorage.getItem('history'))||[];updateUI();}
-
-function updateUI(){
- bankDisplay.innerText='Banco: '+format(bank);
- playersList.innerHTML='';
- let arr=[];
- for(let c in players){
-  let p=players[c];arr.push(p);
-  let falido=p.balance<=0?'falido':'';
-  playersList.innerHTML+=`<div class="player-card ${cardMap[c].class} ${falido}">
-  ${p.name} - ${cardMap[c].name}<br>
-  <div class="player-balance">${format(p.balance)}</div></div>`;
- }
- arr.sort((a,b)=>b.balance-a.balance);
- ranking.innerHTML=arr.map((p,i)=>`${i+1}º ${p.name} - ${format(p.balance)}`).join('<br>');
- document.getElementById('history').innerHTML=history.slice(-10).reverse().join('<br>');
-}
-
-function startBank(){bank=parseInt(bankValue.value)||0;save();updateUI();}
-function resetAll(){localStorage.clear();location.reload();}
-
-function closePopup(){
- if(html5QrCode){
-  html5QrCode.stop().catch(()=>{});
- }
- popup.style.display='none';
-}
-
-function openScanner(cb){
- popup.style.display='flex';
- popupBox.innerHTML=`
- <button class="cancel" onclick="closePopup()">Cancelar</button>
- <div id="reader"></div>`;
-
- setTimeout(()=>{
-  html5QrCode=new Html5Qrcode("reader");
-  html5QrCode.start({facingMode:"environment"},{fps:10,qrbox:250},
-   text=>{
-    html5QrCode.stop().then(()=>{
-     popup.style.display='none';
-     cb(text);
-    });
-   }
-  ).catch(err=>{
-    alert('Erro câmera: '+err);
-    popup.style.display='none';
-  });
- },200);
-}
-
-function scanPlayer(){
- openScanner(code=>{
-  if(!cardMap[code]) return alert('Cartão inválido');
-  let name=playerName.value;
-  let val=parseInt(initialPlayerMoney.value)||0;
-  players[code]={name:name,balance:val};
-  bank-=val;
-  history.push(`${name} entrou com ${format(val)}`);
-  save();updateUI();
- });
-}
-
-function transferTemplate(){
- return `
- <h3>Transferência</h3>
- <button onclick="scanPayer()">Escanear Pagador</button>
- <div id="payerInfo"></div>
- <button onclick="scanReceiver()">Escanear Recebedor</button>
- <div id="receiverInfo"></div>
- <input id="val" type="number" placeholder="Valor">
- <button onclick="confirmTransfer()">Transferir</button>
- <button class="cancel" onclick="closePopup()">Cancelar</button>`;
-}
-
-function openTransfer(){
- payer=null;receiver=null;
- popup.style.display='flex';
- popupBox.innerHTML = transferTemplate();
-}
-
-function scanPayer(){
- openScanner(code=>{
-  payer=code;
-
-  popup.style.display='flex';
-  popupBox.innerHTML = transferTemplate();
-
-  if(code === 'jogador1'){
-    document.getElementById('payerInfo').innerHTML =
-      `Pagador: Banco`;
-  } else {
-    if(!players[code]) return alert('Jogador não encontrado');
-    document.getElementById('payerInfo').innerHTML =
-      `Pagador: ${players[code].name} (${cardMap[code].name})`;
-  }
- });
-}
-
-function scanReceiver(){
- openScanner(code=>{
-  receiver=code;
-
-  popup.style.display='flex';
-  popupBox.innerHTML = transferTemplate();
-
-  if(payer){
-    if(payer === 'jogador1'){
-      document.getElementById('payerInfo').innerHTML = `Pagador: Banco`;
-    } else {
-      document.getElementById('payerInfo').innerHTML =
-        `Pagador: ${players[payer].name} (${cardMap[payer].name})`;
+  function loadData() {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      return stored ? JSON.parse(stored) : { players: [], transactions: [] };
+    } catch (err) {
+      console.error('Erro ao carregar dados:', err);
+      return { players: [], transactions: [] };
     }
   }
 
-  if(code === 'jogador1'){
-    document.getElementById('receiverInfo').innerHTML =
-      `Recebedor: Banco`;
-  } else {
-    if(!players[code]) return alert('Jogador não encontrado');
-    document.getElementById('receiverInfo').innerHTML =
-      `Recebedor: ${players[code].name} (${cardMap[code].name})`;
+  function saveData(data) {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (err) {
+      console.error('Erro ao salvar dados:', err);
+    }
   }
- });
-}
 
-function confirmTransfer(){
- let v=parseInt(document.getElementById('val').value)||0;
- if(!payer||!receiver) return alert('Escaneie os dois');
+  function downloadGameSave() {
+    const data = { players: allPlayers, transactions: allTransactions };
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `techmix-save-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('✅ Jogo salvo!');
+  }
 
- if(payer === 'jogador1'){
-   if(bank < v) return alert('Banco sem saldo');
-   if(!players[receiver]) return alert('Jogador não encontrado');
+  function loadGameSave(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = JSON.parse(e.target.result);
+        if (data.players && data.transactions) {
+          allPlayers = data.players;
+          allTransactions = data.transactions;
+          bankerRecord = allPlayers.find(p => p.is_banker);
+          saveData({ players: allPlayers, transactions: allTransactions });
+          renderDashboard();
+          showScreen('screen-dashboard');
+          showToast('✅ Jogo carregado com sucesso!');
+        } else {
+          showToast('❌ Arquivo inválido', 'error');
+        }
+      } catch (err) {
+        console.error('Erro ao carregar arquivo:', err);
+        showToast('❌ Erro ao ler o arquivo', 'error');
+      }
+    };
+    reader.readAsText(file);
+    document.getElementById('file-upload').value = '';
+  }
 
-   bank -= v;
-   players[receiver].balance += v;
-   history.push(`Banco pagou ${format(v)} para ${players[receiver].name}`);
- }
- else if(receiver === 'jogador1'){
-   if(!players[payer]) return alert('Jogador não encontrado');
-   if(players[payer].balance < v) return alert('Saldo insuficiente');
+  // ============ STATE ============
+  let allPlayers = [];
+  let allTransactions = [];
+  let bankerRecord = null;
+  let scanMode = null;
+  let txPayer = null;
+  let txReceiver = null;
+  let cameraStream = null;
+  let scannerActive = false;
 
-   players[payer].balance -= v;
-   bank += v;
-   history.push(`${players[payer].name} pagou ${format(v)} ao Banco`);
- }
- else {
-   if(players[payer].balance < v) return alert('Saldo insuficiente');
-   players[payer].balance -= v;
-   players[receiver].balance += v;
-   history.push(`${players[payer].name} pagou ${format(v)} para ${players[receiver].name}`);
- }
+  // Load data on startup
+  function initializeApp() {
+    const data = loadData();
+    allPlayers = data.players || [];
+    allTransactions = data.transactions || [];
+    bankerRecord = allPlayers.find(p => p.is_banker);
+    
+    if (allPlayers.length > 0 && bankerRecord) {
+      renderDashboard();
+      showScreen('screen-dashboard');
+    }
+  }
 
- document.getElementById('sound').play();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeApp);
+  } else {
+    initializeApp();
+  }
 
- for(let i=0;i<10;i++){
-  let m=document.createElement('div');
-  m.className='money';m.innerText='💸';
-  m.style.left=Math.random()*300+'px';
-  m.style.top='300px';
-  document.body.appendChild(m);
-  setTimeout(()=>m.remove(),1000);
- }
+  const CARD_MAP = {
+    jogador1: { name: 'Banqueiro', emoji: '🏦' },
+    jogador2: { name: 'Kubank', emoji: '💳' },
+    jogador3: { name: 'Mercado Caro', emoji: '🛒' },
+    jogador4: { name: 'Néctar', emoji: '🍯' },
+    jogador5: { name: 'Banco Inner', emoji: '🔮' },
+    jogador6: { name: 'Win Bank', emoji: '🎮' },
+    jogador7: { name: 'Bradesco', emoji: '🏛️' },
+  };
 
- save();updateUI();popup.style.display='none';
-}
+  const CARD_COLORS = {
+    jogador1: 'from-blue-600 to-blue-800',
+    jogador2: 'from-violet-600 to-purple-800',
+    jogador3: 'from-gray-700 to-gray-900',
+    jogador4: 'from-lime-400 to-green-600',
+    jogador5: 'from-orange-500 to-orange-700',
+    jogador6: 'from-yellow-400 to-yellow-600',
+    jogador7: 'from-red-600 to-red-800',
+  };
 
-load();
-</script></body>
+  // ============ HELPERS ============
+  function formatMoney(val) {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(val || 0));
+  }
+
+  function showToast(msg, type = 'success') {
+    const container = document.getElementById('toast-container');
+    const colors = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-primary';
+    const div = document.createElement('div');
+    div.className = `toast-anim ${colors} text-white px-6 py-3 rounded-2xl shadow-xl font-600 text-sm text-center`;
+    div.textContent = msg;
+    container.appendChild(div);
+    setTimeout(() => div.remove(), 3200);
+  }
+
+  function showScreen(id) {
+    const screens = document.querySelectorAll('#app > div:not(#toast-container)');
+    screens.forEach(s => s.classList.add('hidden'));
+    document.getElementById(id).classList.remove('hidden');
+    lucide.createIcons();
+  }
+
+  function getRegisteredCardIds() {
+    return allPlayers.filter(p => !p.is_banker).map(p => p.player_id);
+  }
+
+  function getAvailableCards() {
+    const registered = getRegisteredCardIds();
+    return Object.keys(CARD_MAP).filter(id => id !== 'jogador1' && !registered.includes(id));
+  }
+
+  // ============ BANKER SETUP ============
+  async function setupBanker() {
+    const val = parseInt(document.getElementById('banker-balance-input').value) || 0;
+    if (val <= 0) { showToast('Defina um valor válido', 'error'); return; }
+    
+    if (bankerRecord) {
+      bankerRecord.balance = val;
+    } else {
+      bankerRecord = { player_id: 'jogador1', player_name: 'Banco', card_name: 'Banqueiro', balance: val, is_banker: true };
+      allPlayers.push(bankerRecord);
+    }
+    
+    saveData({ players: allPlayers, transactions: allTransactions });
+    renderDashboard();
+    showToast('Banco configurado!');
+    showScreen('screen-dashboard');
+  }
+
+  // ============ DASHBOARD ============
+  function renderDashboard() {
+    const bd = document.getElementById('banker-balance-display');
+    if (bankerRecord) bd.textContent = formatMoney(bankerRecord.balance);
+    else bd.textContent = 'R$ 0';
+
+    const players = allPlayers.filter(p => !p.is_banker && p.balance > 0).sort((a, b) => b.balance - a.balance);
+    
+    const list = document.getElementById('players-list');
+    const existingEls = new Map([...list.children].map(el => [el.dataset.pid, el]));
+    const seenIds = new Set();
+
+    players.forEach((p, index) => {
+      seenIds.add(p.player_id);
+      const colors = CARD_COLORS[p.player_id] || 'from-gray-400 to-gray-600';
+      const cardInfo = CARD_MAP[p.player_id] || { name: '?', emoji: '💳' };
+      
+      if (existingEls.has(p.player_id)) {
+        const el = existingEls.get(p.player_id);
+        el.querySelector('.p-name').textContent = p.player_name;
+        el.querySelector('.p-card').textContent = cardInfo.emoji + ' ' + cardInfo.name;
+        el.querySelector('.p-balance').textContent = formatMoney(p.balance);
+      } else {
+        const div = document.createElement('div');
+        div.dataset.pid = p.player_id;
+        div.className = `bg-gradient-to-r ${colors} rounded-2xl p-4 shadow-lg card-shine fade-in flex items-center justify-between cursor-pointer hover:shadow-xl transition-shadow`;
+        div.innerHTML = `
+          <div>
+            <p class="p-name text-white font-700 text-lg">${p.player_name}</p>
+            <p class="p-card text-white/70 text-sm">${cardInfo.emoji} ${cardInfo.name}</p>
+          </div>
+          <div class="text-right">
+            <p class="p-balance text-white font-800 text-xl">${formatMoney(p.balance)}</p>
+          </div>`;
+        div.onclick = () => showPlayerTransactions(p.player_id);
+        list.appendChild(div);
+      }
+    });
+    
+    existingEls.forEach((el, id) => { if (!seenIds.has(id)) el.remove(); });
+
+    document.getElementById('player-count-badge').textContent = `${players.length}/6`;
+    const addBtn = document.getElementById('add-player-btn-wrap');
+    if (players.length >= 6) addBtn.classList.add('hidden');
+    else addBtn.classList.remove('hidden');
+
+    lucide.createIcons();
+  }
+
+  // ============ REGISTER PLAYER ============
+  function startScanForRegistration() {
+    const name = document.getElementById('player-name-input').value.trim();
+    if (!name) { showToast('Digite o nome do jogador', 'error'); return; }
+    const available = getAvailableCards();
+    if (available.length === 0) { showToast('Todos os cartões já foram cadastrados', 'error'); return; }
+    scanMode = 'register';
+    openScanner('Escanear Cartão do Jogador', available);
+  }
+
+  function openScanner(title, availableCardIds) {
+    document.getElementById('scanner-title').textContent = title;
+    const selector = document.getElementById('card-selector');
+    selector.innerHTML = '';
+    const instruction = document.getElementById('scanner-instruction');
+
+    if (scanMode === 'register') {
+      instruction.textContent = 'Escaneie o código QR do cartão';
+    } else if (scanMode === 'payer') {
+      instruction.textContent = 'Escaneie o código QR do pagador';
+    } else {
+      instruction.textContent = 'Escaneie o código QR do recebedor';
+    }
+
+    let cardIds = [...availableCardIds];
+    if ((scanMode === 'payer' || scanMode === 'receiver') && bankerRecord && !cardIds.includes('jogador1')) {
+      cardIds.unshift('jogador1');
+    }
+
+    cardIds.forEach(id => {
+      const info = CARD_MAP[id];
+      const player = allPlayers.find(p => p.player_id === id);
+      const label = player ? `${player.player_name} — ${info.emoji} ${info.name}` : `${info.emoji} ${info.name}`;
+      const btn = document.createElement('button');
+      btn.className = 'w-full bg-white/10 hover:bg-white/20 text-white font-600 py-3 px-5 rounded-xl transition-colors text-left flex items-center gap-3';
+      btn.innerHTML = `<span class="text-2xl">${info.emoji}</span><span>${label}</span>`;
+      btn.onclick = () => onCardScanned(id);
+      selector.appendChild(btn);
+    });
+
+    showScreen('screen-scanner');
+    startCamera();
+  }
+
+  function showCardSelector() {
+    const selector = document.getElementById('card-selector');
+    selector.classList.toggle('hidden');
+  }
+
+  // ============ CAMERA / QR SCANNER ============
+  async function startCamera() {
+    scannerActive = true;
+    const video = document.getElementById('scanner-video');
+    const loading = document.getElementById('scanner-loading');
+    const result = document.getElementById('scanner-result');
+    const wrapper = document.getElementById('scanner-camera-wrapper');
+
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        result.textContent = 'Câmera não suportada neste navegador';
+        result.classList.add('text-red-400');
+        loading.classList.add('hidden');
+        scannerActive = false;
+        return;
+      }
+
+      let stream = null;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+        });
+      } catch (err1) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
+          });
+        } catch (err2) {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { width: { ideal: 1280 }, height: { ideal: 720 } }
+          });
+        }
+      }
+
+      cameraStream = stream;
+      video.srcObject = cameraStream;
+      video.onloadedmetadata = () => {
+        video.play().then(() => {
+          video.classList.remove('hidden');
+          loading.classList.add('hidden');
+          result.textContent = '';
+          result.classList.remove('text-red-400');
+          wrapper.style.background = '#000';
+          scanQRLoop();
+        }).catch(err => {
+          console.error('Video play error:', err);
+          result.textContent = 'Erro ao reproduzir vídeo';
+          result.classList.add('text-red-400');
+          loading.classList.add('hidden');
+          scannerActive = false;
+        });
+      };
+
+      video.onerror = () => {
+        result.textContent = 'Erro ao carregar câmera';
+        result.classList.add('text-red-400');
+        loading.classList.add('hidden');
+        scannerActive = false;
+      };
+
+    } catch (err) {
+      console.error('Camera error:', err);
+      
+      if (err.name === 'NotAllowedError') {
+        result.textContent = '❌ Permissão negada. Aceite o acesso à câmera.';
+      } else if (err.name === 'NotFoundError') {
+        result.textContent = '❌ Nenhuma câmera encontrada no dispositivo.';
+      } else if (err.name === 'NotReadableError') {
+        result.textContent = '❌ A câmera está sendo usada por outro aplicativo.';
+      } else {
+        result.textContent = '❌ Câmera indisponível. Use seleção manual.';
+      }
+      
+      result.classList.add('text-red-400');
+      loading.classList.add('hidden');
+      scannerActive = false;
+    }
+  }
+
+  function scanQRLoop() {
+    if (!scannerActive) return;
+
+    const video = document.getElementById('scanner-video');
+    const canvas = document.getElementById('scanner-canvas');
+    const ctx = canvas.getContext('2d');
+
+    try {
+      if (video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth > 0) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0);
+
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height);
+
+        if (code && code.data) {
+          const scanned = code.data.trim();
+          if (Object.keys(CARD_MAP).includes(scanned)) {
+            stopCamera();
+            onCardScanned(scanned);
+            return;
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Scan loop error:', err);
+    }
+
+    requestAnimationFrame(scanQRLoop);
+  }
+
+  function stopCamera() {
+    scannerActive = false;
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      cameraStream = null;
+    }
+  }
+
+  async function onCardScanned(cardId) {
+    if (scanMode === 'register') {
+      await registerPlayer(cardId);
+    } else if (scanMode === 'payer') {
+      const player = allPlayers.find(p => p.player_id === cardId);
+      if (!player) { showToast('Jogador não encontrado', 'error'); return; }
+      txPayer = player;
+      document.getElementById('tx-payer-name').textContent = player.player_name + ' (' + (CARD_MAP[cardId]?.name || '') + ')';
+      document.getElementById('tx-step-1').classList.add('hidden');
+      document.getElementById('tx-step-2').classList.remove('hidden');
+      stopCamera();
+      showScreen('screen-transaction');
+    } else if (scanMode === 'receiver') {
+      const player = allPlayers.find(p => p.player_id === cardId);
+      if (!player) { showToast('Jogador não encontrado', 'error'); return; }
+      if (txPayer && txPayer.player_id === cardId) { showToast('Pagador e recebedor devem ser diferentes', 'error'); return; }
+      txReceiver = player;
+      document.getElementById('tx-payer-name-2').textContent = txPayer.player_name;
+      document.getElementById('tx-payer-balance').textContent = formatMoney(txPayer.balance);
+      document.getElementById('tx-receiver-name').textContent = txReceiver.player_name;
+      document.getElementById('tx-receiver-balance').textContent = formatMoney(txReceiver.balance);
+      document.getElementById('tx-step-2').classList.add('hidden');
+      document.getElementById('tx-step-3').classList.remove('hidden');
+      document.getElementById('tx-amount-input').value = '';
+      document.getElementById('tx-error').classList.add('hidden');
+      stopCamera();
+      showScreen('screen-transaction');
+    }
+    lucide.createIcons();
+  }
+
+  async function registerPlayer(cardId) {
+    const name = document.getElementById('player-name-input').value.trim();
+    const balance = parseInt(document.getElementById('player-balance-input').value) || 0;
+    if (allPlayers.length >= 999) { showToast('Limite de registros atingido', 'error'); return; }
+    if (allPlayers.find(p => p.player_id === cardId)) { showToast('Este cartão já foi cadastrado', 'error'); return; }
+    const cardInfo = CARD_MAP[cardId];
+    
+    const newPlayer = {
+      player_id: cardId,
+      player_name: name,
+      card_name: cardInfo.name,
+      balance: balance,
+      is_banker: false
+    };
+    
+    allPlayers.push(newPlayer);
+    
+    if (bankerRecord && balance > 0) {
+      bankerRecord.balance -= balance;
+    }
+    
+    saveData({ players: allPlayers, transactions: allTransactions });
+    renderDashboard();
+    showToast(`${name} cadastrado com sucesso!`);
+    document.getElementById('player-name-input').value = '';
+    document.getElementById('player-balance-input').value = '25000';
+    showScreen('screen-dashboard');
+  }
+
+  function cancelScan() {
+    stopCamera();
+    if (scanMode === 'register') showScreen('screen-add-player');
+    else showScreen('screen-transaction');
+  }
+
+  // ============ TRANSACTIONS ============
+  function startTransaction() {
+    const players = allPlayers.filter(p => !p.is_banker);
+    if (players.length < 1) { showToast('Cadastre pelo menos 1 jogador', 'error'); return; }
+    txPayer = null;
+    txReceiver = null;
+    document.getElementById('tx-step-1').classList.remove('hidden');
+    document.getElementById('tx-step-2').classList.add('hidden');
+    document.getElementById('tx-step-3').classList.add('hidden');
+    document.getElementById('tx-success').classList.add('hidden');
+    showScreen('screen-transaction');
+  }
+
+  function scanForTransaction(role) {
+    const registeredIds = allPlayers.map(p => p.player_id);
+    if (role === 'payer') {
+      scanMode = 'payer';
+      openScanner('Escanear Pagador', registeredIds);
+    } else {
+      scanMode = 'receiver';
+      const filtered = registeredIds.filter(id => !txPayer || id !== txPayer.player_id);
+      openScanner('Escanear Recebedor', filtered);
+    }
+  }
+
+  async function executeTransfer() {
+    const amount = parseInt(document.getElementById('tx-amount-input').value) || 0;
+    const errEl = document.getElementById('tx-error');
+    if (amount <= 0) {
+      errEl.textContent = 'Digite um valor válido';
+      errEl.classList.remove('hidden');
+      return;
+    }
+    
+    const payer = allPlayers.find(p => p.player_id === txPayer.player_id);
+    const receiver = allPlayers.find(p => p.player_id === txReceiver.player_id);
+    
+    if (!payer || !receiver) { showToast('Jogador não encontrado', 'error'); return; }
+    if (payer.balance < amount) {
+      errEl.textContent = 'Saldo insuficiente! Saldo: ' + formatMoney(payer.balance);
+      errEl.classList.remove('hidden');
+      return;
+    }
+    
+    errEl.classList.add('hidden');
+    const btn = document.getElementById('tx-confirm-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="animate-spin inline-block w-5 h-5 border-2 border-white border-t-transparent rounded-full"></span> Transferindo...';
+
+    payer.balance -= amount;
+    receiver.balance += amount;
+    
+    const tx = {
+      from: payer.player_id,
+      from_name: payer.player_name,
+      to: receiver.player_id,
+      to_name: receiver.player_name,
+      amount: amount,
+      timestamp: new Date().toISOString()
+    };
+    allTransactions.push(tx);
+    
+    saveData({ players: allPlayers, transactions: allTransactions });
+    renderDashboard();
+
+    btn.disabled = false;
+    btn.innerHTML = '<i data-lucide="check" class="w-5 h-5"></i> Transferir';
+    lucide.createIcons();
+
+    document.getElementById('tx-step-3').classList.add('hidden');
+    document.getElementById('tx-success').classList.remove('hidden');
+    document.getElementById('tx-success-msg').textContent =
+      `${formatMoney(amount)} transferido de ${payer.player_name} para ${receiver.player_name}`;
+    lucide.createIcons();
+  }
+
+  // ============ RESET ============
+  async function resetGame() {
+    allPlayers = [];
+    allTransactions = [];
+    bankerRecord = null;
+    saveData({ players: [], transactions: [] });
+  }
+
+  function showResetConfirm() {
+    const confirmed = confirm('⚠️ Tem certeza que deseja resetar o jogo? Todos os dados serão perdidos.');
+    if (confirmed) {
+      resetGame();
+      showToast('🔄 Jogo resetado!');
+      showScreen('screen-splash');
+    }
+  }
+
+  function showPlayerTransactions(playerId) {
+    const player = allPlayers.find(p => p.player_id === playerId);
+    if (!player) return;
+    
+    const txs = allTransactions.filter(t => t.from === playerId || t.to === playerId);
+    const modal = document.getElementById('transaction-modal');
+    const title = document.getElementById('transaction-modal-title');
+    const list = document.getElementById('transaction-modal-list');
+    
+    title.textContent = `Extrato - ${player.player_name}`;
+    list.innerHTML = '';
+    
+    if (txs.length === 0) {
+      list.innerHTML = '<div class="text-gray-500 text-center py-8"><p class="text-sm">Nenhuma transação registrada</p></div>';
+    } else {
+      txs.forEach(tx => {
+        const isFrom = tx.from === playerId;
+        const color = isFrom ? 'border-red-300 bg-red-50' : 'border-green-300 bg-green-50';
+        const textColor = isFrom ? 'text-red-600' : 'text-green-600';
+        const icon = isFrom ? '↗️' : '↙️';
+        const otherName = isFrom ? tx.to_name : tx.from_name;
+        const date = new Date(tx.timestamp).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        
+        const div = document.createElement('div');
+        div.className = `flex items-center justify-between p-4 rounded-xl border-l-4 ${color}`;
+        div.innerHTML = `
+          <div>
+            <p class="text-sm font-700"><span>${icon}</span> ${isFrom ? 'Enviou para' : 'Recebeu de'} <strong>${otherName}</strong></p>
+            <p class="text-xs text-gray-500 mt-1">${date}</p>
+          </div>
+          <p class="font-800 text-lg ${textColor}">${isFrom ? '-' : '+'}${formatMoney(tx.amount)}</p>
+        `;
+        list.appendChild(div);
+      });
+    }
+    
+    modal.classList.remove('hidden');
+  }
+
+  function closeTransactionModal() {
+    document.getElementById('transaction-modal').classList.add('hidden');
+  }
+
+  // ============ ELEMENT SDK ============
+  const defaultConfig = {
+    app_title: 'TechMix Bank',
+    welcome_text: 'Sistema Bancário Imobiliário',
+    background_color: '#6B21A8',
+    surface_color: '#FFFFFF',
+    text_color: '#1F2937',
+    primary_action_color: '#6B21A8',
+    secondary_action_color: '#7C3AED',
+    font_family: 'Outfit',
+    font_size: 16,
+  };
+
+  function applyConfig(config) {
+    const title = config.app_title || defaultConfig.app_title;
+    const welcome = config.welcome_text || defaultConfig.welcome_text;
+    const bg = config.background_color || defaultConfig.background_color;
+    const surface = config.surface_color || defaultConfig.surface_color;
+    const text = config.text_color || defaultConfig.text_color;
+    const pAction = config.primary_action_color || defaultConfig.primary_action_color;
+    const sAction = config.secondary_action_color || defaultConfig.secondary_action_color;
+    const font = config.font_family || defaultConfig.font_family;
+    const size = config.font_size || defaultConfig.font_size;
+
+    document.getElementById('splash-title').textContent = title;
+    document.getElementById('splash-subtitle').textContent = welcome;
+    document.getElementById('dash-title').textContent = title;
+
+    document.documentElement.style.setProperty('--bg', bg);
+    document.documentElement.style.setProperty('--surface', surface);
+    document.documentElement.style.setProperty('--text', text);
+
+    document.body.style.fontFamily = `${font}, Outfit, sans-serif`;
+    document.body.style.fontSize = `${size}px`;
+  }
+
+  window.elementSdk.init({
+    defaultConfig,
+    onConfigChange: async (config) => applyConfig(config),
+    mapToCapabilities: (config) => ({
+      recolorables: [
+        { get: () => config.background_color || defaultConfig.background_color, set: (v) => { config.background_color = v; window.elementSdk.setConfig({ background_color: v }); } },
+        { get: () => config.surface_color || defaultConfig.surface_color, set: (v) => { config.surface_color = v; window.elementSdk.setConfig({ surface_color: v }); } },
+        { get: () => config.text_color || defaultConfig.text_color, set: (v) => { config.text_color = v; window.elementSdk.setConfig({ text_color: v }); } },
+        { get: () => config.primary_action_color || defaultConfig.primary_action_color, set: (v) => { config.primary_action_color = v; window.elementSdk.setConfig({ primary_action_color: v }); } },
+        { get: () => config.secondary_action_color || defaultConfig.secondary_action_color, set: (v) => { config.secondary_action_color = v; window.elementSdk.setConfig({ secondary_action_color: v }); } },
+      ],
+      borderables: [],
+      fontEditable: { get: () => config.font_family || defaultConfig.font_family, set: (v) => { config.font_family = v; window.elementSdk.setConfig({ font_family: v }); } },
+      fontSizeable: { get: () => config.font_size || defaultConfig.font_size, set: (v) => { config.font_size = v; window.elementSdk.setConfig({ font_size: v }); } },
+    }),
+    mapToEditPanelValues: (config) => new Map([
+      ['app_title', config.app_title || defaultConfig.app_title],
+      ['welcome_text', config.welcome_text || defaultConfig.welcome_text],
+    ])
+  });
+
+  lucide.createIcons();
+</script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9dfe3a7246ad5cb7',t:'MTc3NDEwOTQ0My4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
